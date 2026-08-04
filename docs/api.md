@@ -44,6 +44,25 @@ Response `data`:
 }
 ```
 
+## Admin — Monitoring
+
+### `GET /admin/monitoring/stats`
+Reads Redis keys python-ai writes on every LLM call and every FAISS index change (see `shared/redis-contract.md`) - no data of its own. Response `data`:
+```json
+{
+  "llmUsage": { "totalCalls": 97, "callsToday": 12, "dailyLimit": 500, "byProvider": { "groq": 97 } },
+  "vectorDb": { "totalVectors": 79, "indexedDocuments": 2, "embeddingModel": "sentence-transformers/all-MiniLM-L6-v2" }
+}
+```
+
+## Admin — Reset
+
+### `POST /admin/reset/all`
+**Destructive, irreversible.** Deletes every document (Mongo record, file on disk, and FAISS vectors — via the same cascade as `DELETE /admin/documents/:id`, run once per document), all chat sessions/messages, and the LLM usage counters. Response `data`:
+```json
+{ "documentsDeleted": 3 }
+```
+
 ## Public Chat (no auth)
 
 ### `POST /chat/ask`

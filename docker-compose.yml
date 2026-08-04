@@ -1,0 +1,37 @@
+# docker-compose.yml
+# ------------------------------------------------------------------------
+# INFRA ONLY for local development - runs MongoDB + Redis so you don't need
+# to install them on your machine. The application itself (frontend,
+# backend, python-ai) is NOT containerized here - run each with its native
+# tooling (npm run dev / uvicorn) per the README.
+#
+# Host ports are offset from Mongo/Redis defaults (27018/6380) so this stack
+# can run alongside the sibling AItask_assignment project's docker-compose
+# (which uses the default 27017/6379) without a port clash.
+#
+# Usage: docker compose up -d
+services:
+  mongo:
+    image: mongo:7
+    container_name: pdf_rag_chatbot_mongo
+    ports:
+      # Bound to 127.0.0.1 only - Docker's default "host:container" form
+      # (no bind address) publishes to 0.0.0.0, reachable from ANY network
+      # interface on this machine, not just localhost. Neither service has
+      # auth configured, so that would mean unauthenticated Mongo/Redis
+      # reachable from outside this host. See README's Security section.
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: pdf_rag_chatbot_redis
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mongo_data:
+  redis_data:

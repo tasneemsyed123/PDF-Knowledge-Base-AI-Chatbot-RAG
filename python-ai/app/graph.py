@@ -1,0 +1,223 @@
+"""
+graph.py
+------------------------------------------------------------------------
+LangGraph workflow for one chat turn, matching the assignment's mandatory
+diagram literally (5 named stages, not folded into START/END):
+
+    START -> receive_question -> retrieve_context -> generate_answer
+          -> generate_suggested_questions -> return_response -> END
+
+`chat_history` is passed in per-request (fetched by the Node backend from
+Mongo) rather than held in memory here, so this service stays stateless and
+restart-safe while still satisfying "conversation memory".
+
+Streaming: `generate_answer` calls `llm.astream()` and invokes the
+`on_chunk` callback per token, which the caller (main.py) wires straight to
+a `chat:response:{requestId}` Redis publish - so tokens reach the frontend
+as they're generated even though LangGraph itself runs to completion before
+returning its final state.
+"""
+import json
+import logging
+import re
+from typing import Awaitable, Callable, Optional, TypedDict
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, Field
+
+from .llm import get_chat_model
+from .vector_store import retrieve
+
+logger = logging.getLogger("graph")
+
+
+class ChatTurn(TypedDict):
+    question: str
+    answer: str
+
+
+class ChatState(TypedDict):
+    question: str
+    session_id: str
+    chat_history: list[ChatTurn]
+    retrieved_docs: list
+    answer: str
+    sources: list[dict]
+    suggested_questions: list[str]
+    on_chunk: Optional[Callable[[str], Awaitable[None]]]
+
+
+async def receive_question(state: ChatState) -> dict:
+    question = state["question"].strip()
+    if not question:
+        raise ValueError("Question must not be empty")
+    return {"question": question}
+
+
+async def retrieve_context(state: ChatState) -> dict:
+    docs = retrieve(state["question"])
+    return {"retrieved_docs": docs}
+
+
+ANSWER_SYSTEM_PROMPT = (
+    "You are a helpful knowledge-base assistant. Answer the user's question "
+    "using ONLY the provided context extracted from uploaded PDF documents. "
+    "If the context does not contain the answer, say plainly that the "
+    "knowledge base doesn't cover it - never make things up. Keep answers "
+    "concise and use markdown (lists, bold) where it improves readability."
+)
+
+
+async def generate_answer(state: ChatState) -> dict:
+    docs = state["retrieved_docs"]
+    context = (
+        "\n\n".join(
+            f"[Source: {d.metadata.get('fileName')}, page {d.metadata.get('page')}]\n{d.page_content}"
+            for d in docs
+        )
+        or "(no relevant context found in the knowledge base)"
+    )
+
+    history_text = "\n".join(
+        f"User: {turn['question']}\nAssistant: {turn['answer']}" for turn in state.get("chat_history", [])
+    ) or "(no prior turns)"
+
+    messages = [
+        SystemMessage(content=ANSWER_SYSTEM_PROMPT),
+        HumanMessage(
+            content=(
+                f"Conversation so far:\n{history_text}\n\n"
+                f"Context from the knowledge base:\n{context}\n\n"
+                f"Question: {state['question']}"
+            )
+        ),
+    ]
+
+    llm = get_chat_model()
+    on_chunk = state.get("on_chunk")
+    full_answer = ""
+    async for chunk in llm.astream(messages):
+        piece = chunk.content or ""
+        if piece:
+            full_answer += piece
+            if on_chunk:
+                await on_chunk(piece)
+
+    sources: list[dict] = []
+    seen = set()
+    for d in docs:
+        key = (d.metadata.get("fileName"), d.metadata.get("page"))
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append({"documentName": d.metadata.get("fileName"), "page": d.metadata.get("page")})
+
+    return {"answer": full_answer, "sources": sources}
+
+
+class SuggestedQuestions(BaseModel):
+    questions: list[str] = Field(description="3 to 5 short, relevant follow-up questions")
+
+
+SUGGEST_SYSTEM_PROMPT = (
+    "Given the user's question and the assistant's answer, propose 3 to 5 "
+    "short, relevant follow-up questions the user might ask next. Base them "
+    "on what would naturally extend this conversation."
+)
+
+
+def _parse_questions_fallback(text: str) -> list[str]:
+    """Tolerant parser used when a provider/model doesn't support structured output reliably."""
+    cleaned = re.sub(r"```(json)?", "", text).strip()
+    match = re.search(r"\[.*\]", cleaned, re.DOTALL)
+    if match:
+        try:
+            parsed = json.loads(match.group(0))
+            return [str(q).strip() for q in parsed if str(q).strip()]
+        except json.JSONDecodeError:
+            pass
+    lines = [re.sub(r"^[\d.\-)\s]+", "", line).strip() for line in cleaned.splitlines()]
+    return [line for line in lines if line][:5]
+
+
+async def generate_suggested_questions(state: ChatState) -> dict:
+    llm = get_chat_model()
+    prompt = (
+        f"Question: {state['question']}\nAnswer: {state['answer']}\n\n"
+        "Return 3-5 short follow-up questions."
+    )
+    messages = [SystemMessage(content=SUGGEST_SYSTEM_PROMPT), HumanMessage(content=prompt)]
+
+    try:
+        structured_llm = llm.with_structured_output(SuggestedQuestions)
+        result = await structured_llm.ainvoke(messages)
+        questions = result.questions
+    except Exception:
+        logger.warning("Structured output unavailable for suggested questions, falling back to text parsing")
+        try:
+            raw = await llm.ainvoke(messages)
+            questions = _parse_questions_fallback(raw.content)
+        except Exception:
+            logger.exception("Failed to generate suggested questions")
+            questions = []
+
+    return {"suggested_questions": questions[:5]}
+
+
+async def return_response(state: ChatState) -> dict:
+    # Assembly point - state is already complete. Kept as an explicit node
+    # (rather than wiring generate_suggested_questions straight to END) so
+    # the graph shape matches the assignment's mandatory diagram literally.
+    # LangGraph requires every node to write at least one state key, so this
+    # is a harmless no-op rewrite rather than a real update.
+    return {"answer": state["answer"]}
+
+
+def build_chat_graph():
+    graph = StateGraph(ChatState)
+    graph.add_node("receive_question", receive_question)
+    graph.add_node("retrieve_context", retrieve_context)
+    graph.add_node("generate_answer", generate_answer)
+    graph.add_node("generate_suggested_questions", generate_suggested_questions)
+    graph.add_node("return_response", return_response)
+
+    graph.add_edge(START, "receive_question")
+    graph.add_edge("receive_question", "retrieve_context")
+    graph.add_edge("retrieve_context", "generate_answer")
+    graph.add_edge("generate_answer", "generate_suggested_questions")
+    graph.add_edge("generate_suggested_questions", "return_response")
+    graph.add_edge("return_response", END)
+
+    return graph.compile()
+
+
+_chat_graph = None
+
+
+def get_chat_graph():
+    global _chat_graph
+    if _chat_graph is None:
+        _chat_graph = build_chat_graph()
+    return _chat_graph
+
+
+async def run_chat(
+    question: str,
+    session_id: str,
+    chat_history: list[ChatTurn],
+    on_chunk: Callable[[str], Awaitable[None]],
+) -> dict:
+    graph = get_chat_graph()
+    initial_state: ChatState = {
+        "question": question,
+        "session_id": session_id,
+        "chat_history": chat_history,
+        "retrieved_docs": [],
+        "answer": "",
+        "sources": [],
+        "suggested_questions": [],
+        "on_chunk": on_chunk,
+    }
+    final_state = await graph.ainvoke(initial_state)
+    return {"sources": final_state["sources"], "suggestedQuestions": final_state["suggested_questions"]}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+.env
+.env.*
+!*.env.example
+__pycache__/
+*.pyc
+.venv/
+venv/
+logs/
+*.log
+*.tsbuildinfo
+storage/uploads/*
+!storage/uploads/.gitkeep
+python-ai/faiss_index/

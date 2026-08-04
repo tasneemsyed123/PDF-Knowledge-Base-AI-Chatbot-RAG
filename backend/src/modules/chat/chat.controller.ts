@@ -15,8 +15,9 @@
 import { Request, Response } from 'express';
 import { ChatService } from './chat.service';
 import { ChatRepository } from './chat.repository';
+import { DocumentsRepository } from '../documents/documents.repository';
 
-const chatService = new ChatService(new ChatRepository());
+const chatService = new ChatService(new ChatRepository(), new DocumentsRepository());
 
 export const chatController = {
   async ask(req: Request, res: Response) {

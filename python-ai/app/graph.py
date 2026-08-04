@@ -27,6 +27,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
 from .llm import get_chat_model
+from .usage import record_llm_call
 from .vector_store import retrieve
 
 logger = logging.getLogger("graph")
@@ -41,6 +42,7 @@ class ChatState(TypedDict):
     question: str
     session_id: str
     chat_history: list[ChatTurn]
+    document_names: list[str]
     retrieved_docs: list
     answer: str
     sources: list[dict]
@@ -60,16 +62,57 @@ async def retrieve_context(state: ChatState) -> dict:
     return {"retrieved_docs": docs}
 
 
+# Plain small talk ("hi", "hey", "good morning") has no place in the vector
+# index, so routing it through retrieval + the strict "only use the provided
+# context" prompt produces stilted non-answers like "There's no specific
+# question to answer yet." Detecting it here short-circuits both the
+# retrieve/generate LLM calls entirely - cheaper, instant, and consistently
+# friendly instead of depending on the model to improvise a good greeting.
+GREETING_PATTERN = re.compile(
+    r"^\s*(hi+|hello+|hey+|yo|sup|howdy|greetings|good\s*(morning|afternoon|evening|day))"
+    r"\s*(there|everyone|all|guys|team)?[\s!.,]*$",
+    re.IGNORECASE,
+)
+GREETING_RESPONSE = (
+    "Hi there! 👋 I'm your knowledge base assistant. Ask me anything about "
+    "the uploaded documents and I'll do my best to help."
+)
+GREETING_SUGGESTED_QUESTIONS = [
+    "What documents are currently available?",
+    "Summarize the key points from the knowledge base",
+]
+
+
+def _is_greeting(question: str) -> bool:
+    return bool(GREETING_PATTERN.match(question))
+
+
 ANSWER_SYSTEM_PROMPT = (
     "You are a helpful knowledge-base assistant. Answer the user's question "
     "using ONLY the provided context extracted from uploaded PDF documents. "
-    "If the context does not contain the answer, say plainly that the "
-    "knowledge base doesn't cover it - never make things up. Keep answers "
-    "concise and use markdown (lists, bold) where it improves readability."
+    "You may perform simple reasoning or calculations strictly from facts "
+    "explicitly stated in the context - e.g. estimating an approximate age "
+    "from a stated graduation or birth year - but never invent a fact that "
+    "isn't in the context. If the context doesn't contain the underlying "
+    "fact needed to answer, say plainly that the knowledge base doesn't "
+    "cover it - never make things up. Keep answers concise and use markdown "
+    "(lists, bold) where it improves readability.\n\n"
+    "You are separately given the authoritative list of documents currently "
+    "in the knowledge base. For questions about WHICH documents exist (e.g. "
+    "\"what documents are available\", \"what's in the knowledge base\"), "
+    "answer directly from that list - do not substitute names, standards, "
+    "or sources merely MENTIONED or REFERENCED inside a document's content; "
+    "those are not the same as documents actually uploaded here."
 )
 
 
 async def generate_answer(state: ChatState) -> dict:
+    if _is_greeting(state["question"]):
+        on_chunk = state.get("on_chunk")
+        if on_chunk:
+            await on_chunk(GREETING_RESPONSE)
+        return {"answer": GREETING_RESPONSE, "sources": []}
+
     docs = state["retrieved_docs"]
     context = (
         "\n\n".join(
@@ -83,10 +126,14 @@ async def generate_answer(state: ChatState) -> dict:
         f"User: {turn['question']}\nAssistant: {turn['answer']}" for turn in state.get("chat_history", [])
     ) or "(no prior turns)"
 
+    document_names = state.get("document_names", [])
+    documents_text = "\n".join(f"- {name}" for name in document_names) or "(no documents uploaded yet)"
+
     messages = [
         SystemMessage(content=ANSWER_SYSTEM_PROMPT),
         HumanMessage(
             content=(
+                f"Documents currently in the knowledge base:\n{documents_text}\n\n"
                 f"Conversation so far:\n{history_text}\n\n"
                 f"Context from the knowledge base:\n{context}\n\n"
                 f"Question: {state['question']}"
@@ -97,6 +144,7 @@ async def generate_answer(state: ChatState) -> dict:
     llm = get_chat_model()
     on_chunk = state.get("on_chunk")
     full_answer = ""
+    await record_llm_call()
     async for chunk in llm.astream(messages):
         piece = chunk.content or ""
         if piece:
@@ -138,10 +186,18 @@ def _parse_questions_fallback(text: str) -> list[str]:
         except json.JSONDecodeError:
             pass
     lines = [re.sub(r"^[\d.\-)\s]+", "", line).strip() for line in cleaned.splitlines()]
-    return [line for line in lines if line][:5]
+    # Models often preface the list with a plain sentence like "Here are 3-5
+    # follow-up questions:" before the real items - that line has no leading
+    # list marker for the regex above to strip, so without this filter it
+    # gets returned as if it were question #1. Real follow-up questions are
+    # always phrased as questions, so requiring "?" reliably drops it.
+    return [line for line in lines if line and line.endswith("?")][:5]
 
 
 async def generate_suggested_questions(state: ChatState) -> dict:
+    if _is_greeting(state["question"]):
+        return {"suggested_questions": GREETING_SUGGESTED_QUESTIONS}
+
     llm = get_chat_model()
     prompt = (
         f"Question: {state['question']}\nAnswer: {state['answer']}\n\n"
@@ -151,11 +207,15 @@ async def generate_suggested_questions(state: ChatState) -> dict:
 
     try:
         structured_llm = llm.with_structured_output(SuggestedQuestions)
+        await record_llm_call()
         result = await structured_llm.ainvoke(messages)
-        questions = result.questions
+        # Same preamble-leak risk as the text fallback below - a model can
+        # still stuff a non-question intro line into the structured list.
+        questions = [q for q in result.questions if q.strip().endswith("?")]
     except Exception:
         logger.warning("Structured output unavailable for suggested questions, falling back to text parsing")
         try:
+            await record_llm_call()
             raw = await llm.ainvoke(messages)
             questions = _parse_questions_fallback(raw.content)
         except Exception:
@@ -206,6 +266,7 @@ async def run_chat(
     question: str,
     session_id: str,
     chat_history: list[ChatTurn],
+    document_names: list[str],
     on_chunk: Callable[[str], Awaitable[None]],
 ) -> dict:
     graph = get_chat_graph()
@@ -213,6 +274,7 @@ async def run_chat(
         "question": question,
         "session_id": session_id,
         "chat_history": chat_history,
+        "document_names": document_names,
         "retrieved_docs": [],
         "answer": "",
         "sources": [],

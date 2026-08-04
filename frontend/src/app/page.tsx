@@ -1,19 +1,63 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Loader2, Menu, MessageSquarePlus, Sparkles } from 'lucide-react';
 import { ChatMessageBubble, type ChatTurn } from '@/components/chat/ChatMessageBubble';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { useSessionId } from '@/hooks/useSessionId';
+import { ChatComposer } from '@/components/chat/ChatComposer';
+import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useChatSessions } from '@/hooks/useChatSessions';
 import { streamChatAnswer } from '@/lib/chatStream';
+import { apiClient } from '@/lib/apiClient';
+import type { ChatMessageRecord } from '@/types';
+
+const STARTER_PROMPTS = [
+  'Summarize the key points from the knowledge base',
+  'What documents are currently available?',
+  'What is the refund policy?',
+];
 
 export default function PublicChatPage() {
-  const sessionId = useSessionId();
+  const { sessions, activeId, newChat, selectChat, removeChat, touchSession } = useChatSessions();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activeId) return;
+    let cancelled = false;
+    setTurns([]);
+    setIsLoadingHistory(true);
+
+    (async () => {
+      try {
+        const { data } = await apiClient.get<{ data: ChatMessageRecord[] }>(`/chat/history/${activeId}`);
+        if (!cancelled && data.data.length > 0) {
+          setTurns(
+            data.data.map((m) => ({
+              id: m._id,
+              question: m.question,
+              answer: m.answer,
+              sources: m.sources ?? [],
+              suggestedQuestions: m.suggestedQuestions ?? [],
+              isStreaming: false,
+            })),
+          );
+        }
+      } catch {
+        // Fresh chat with no history yet - not an error.
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -21,7 +65,9 @@ export default function PublicChatPage() {
 
   async function ask(question: string) {
     const trimmed = question.trim();
-    if (!trimmed || !sessionId || isBusy) return;
+    if (!trimmed || !activeId || isBusy) return;
+
+    touchSession(activeId, trimmed);
 
     const id = crypto.randomUUID();
     setTurns((prev) => [
@@ -34,7 +80,7 @@ export default function PublicChatPage() {
     const update = (patch: Partial<ChatTurn>) =>
       setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
 
-    await streamChatAnswer(sessionId, trimmed, {
+    await streamChatAnswer(activeId, trimmed, {
       onChunk: (content) => setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, answer: t.answer + content } : t))),
       onDone: (sources, suggestedQuestions) => update({ sources, suggestedQuestions, isStreaming: false }),
       onError: (message) => update({ error: message, isStreaming: false }),
@@ -43,60 +89,116 @@ export default function PublicChatPage() {
     setIsBusy(false);
   }
 
-  return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <header className="border-b border-border bg-white">
-        <div className="container flex h-16 items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center">
-            <Sparkles className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <p className="font-semibold leading-tight">Knowledge Base Assistant</p>
-            <p className="text-xs text-muted-foreground">Ask anything about the uploaded documents</p>
-          </div>
-        </div>
-      </header>
+  function handleNewChat() {
+    newChat();
+    setIsSidebarOpen(false);
+  }
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="container max-w-3xl py-6 space-y-6">
-          {turns.length === 0 ? (
-            <div className="text-center py-20 text-muted-foreground">
-              <Sparkles className="h-8 w-8 mx-auto mb-3 text-blue-300" />
-              <p className="font-medium">Ask me anything about the knowledge base</p>
-              <p className="text-sm mt-1">I'll answer using the documents the admin has uploaded.</p>
-            </div>
-          ) : (
-            turns.map((turn) => <ChatMessageBubble key={turn.id} turn={turn} onAskSuggested={ask} />)
-          )}
-        </div>
+  function handleSelectChat(id: string) {
+    selectChat(id);
+    setIsSidebarOpen(false);
+  }
+
+  return (
+    <div className="h-[100dvh] flex chat-surface relative overflow-hidden">
+      {/* Decorative ambient glows - purely cosmetic, sit behind everything */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden -z-10">
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-24 h-80 w-80 rounded-full bg-indigo-400/15 blur-3xl" />
       </div>
 
-      <div className="border-t border-border bg-white">
-        <form
-          className="container max-w-3xl py-4 flex items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask(input);
-          }}
-        >
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                ask(input);
-              }
-            }}
-            placeholder="Ask a question about the uploaded documents…"
-            rows={1}
-            className="flex-1"
-            disabled={isBusy || !sessionId}
-          />
-          <Button type="submit" size="icon" disabled={isBusy || !input.trim() || !sessionId}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+      <ChatSidebar
+        sessions={sessions}
+        activeId={activeId}
+        onNewChat={handleNewChat}
+        onSelectChat={handleSelectChat}
+        onRemoveChat={removeChat}
+        isOpenMobile={isSidebarOpen}
+        onCloseMobile={() => setIsSidebarOpen(false)}
+      />
+
+      {/* Desktop-only floating toggle - the mobile header carries its own copy */}
+      <div className="hidden md:block fixed top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0 h-full">
+        <header className="md:hidden shrink-0 border-b border-slate-200/70 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex h-14 items-center gap-2 px-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Open menu"
+              className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate" title="PDF Base AI Chatbot">
+              PDF Base AI Chatbot
+            </p>
+            <div className="ml-auto flex items-center gap-1">
+              <ThemeToggle className="h-9 w-9 bg-transparent border-none shadow-none" />
+              <button
+                onClick={handleNewChat}
+                aria-label="New chat"
+                className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <MessageSquarePlus className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {isLoadingHistory ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            <p className="text-xs">Loading your conversation…</p>
+          </div>
+        ) : turns.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 -mt-6 sm:-mt-10">
+            <h1 className="text-2xl sm:text-4xl font-semibold text-slate-800 dark:text-slate-100 text-center tracking-tight mb-7 sm:mb-9 animate-fadeIn">
+              What would you like to know?
+            </h1>
+            <div className="w-full max-w-2xl">
+              <ChatComposer value={input} onChange={setInput} onSubmit={() => ask(input)} disabled={isBusy || !activeId} autoFocus />
+            </div>
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-2 mt-6 w-full max-w-xl">
+              {STARTER_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => ask(prompt)}
+                  className="text-left sm:text-center text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/40 hover:text-blue-700 dark:hover:text-blue-300 hover:-translate-y-0.5 transition-all duration-150"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div ref={scrollRef} className="flex-1 overflow-y-auto">
+              <div className="container max-w-3xl py-8 space-y-6">
+                {turns.map((turn) => (
+                  <ChatMessageBubble key={turn.id} turn={turn} onAskSuggested={ask} />
+                ))}
+              </div>
+            </div>
+
+            <div className="shrink-0 relative">
+              {/* Soft fade so the message list doesn't end abruptly under the composer */}
+              <div className="pointer-events-none absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-slate-50/90 dark:from-slate-950/90 to-transparent" />
+
+              <div className="container max-w-3xl pt-1 pb-5 sm:pb-7">
+                <ChatComposer value={input} onChange={setInput} onSubmit={() => ask(input)} disabled={isBusy || !activeId} />
+                <p className="text-2xs text-center text-muted-foreground mt-2.5">
+                  Answers are generated from uploaded PDFs and may not always be accurate.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

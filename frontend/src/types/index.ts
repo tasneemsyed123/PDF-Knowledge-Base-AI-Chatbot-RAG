@@ -36,6 +36,24 @@ export interface DashboardStats {
   recentDocuments: DocumentRecord[];
 }
 
+export interface LlmUsageStats {
+  totalCalls: number;
+  callsToday: number;
+  dailyLimit: number | null;
+  byProvider: Record<string, number>;
+}
+
+export interface VectorDbStats {
+  totalVectors: number;
+  indexedDocuments: number;
+  embeddingModel: string | null;
+}
+
+export interface MonitoringStats {
+  llmUsage: LlmUsageStats;
+  vectorDb: VectorDbStats;
+}
+
 export interface AdminUser {
   id: string;
   name: string;

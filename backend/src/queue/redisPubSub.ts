@@ -50,7 +50,7 @@ export interface ChatStreamResult {
  * rejects on timeout / an error reported by python-ai.
  */
 export async function requestChatStream(
-  params: { sessionId: string; question: string; chatHistory: ChatHistoryTurn[] },
+  params: { sessionId: string; question: string; chatHistory: ChatHistoryTurn[]; documentNames: string[] },
   onChunk: (chunk: string) => void,
   timeoutMs: number,
   signal?: AbortSignal,
@@ -122,7 +122,13 @@ export async function requestChatStream(
         // missed while the subscription was still being established.
         return redisPublisher.publish(
           CHAT_REQUEST_CHANNEL,
-          JSON.stringify({ requestId, sessionId: params.sessionId, question: params.question, chatHistory: params.chatHistory }),
+          JSON.stringify({
+            requestId,
+            sessionId: params.sessionId,
+            question: params.question,
+            chatHistory: params.chatHistory,
+            documentNames: params.documentNames,
+          }),
         );
       })
       .catch((err) => {

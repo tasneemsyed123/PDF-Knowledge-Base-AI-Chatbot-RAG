@@ -53,7 +53,7 @@ export function UploadPdfModal({
           </DialogDescription>
         </DialogHeader>
 
-        {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-sm text-red-700">{error}</div>}
+        {error && <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-3.5 py-2.5 text-sm text-red-700 dark:text-red-400">{error}</div>}
 
         <div
           onDragOver={(e) => {
@@ -70,7 +70,7 @@ export function UploadPdfModal({
           onClick={() => inputRef.current?.click()}
           className={cn(
             'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors',
-            isDragging ? 'border-blue-500 bg-blue-50' : 'border-input hover:bg-slate-50',
+            isDragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800',
             isUploading && 'pointer-events-none opacity-60',
           )}
         >

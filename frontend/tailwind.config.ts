@@ -45,6 +45,9 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+      },
       keyframes: {
         slideIn: {
           from: { opacity: '0', transform: 'translateY(8px)' },

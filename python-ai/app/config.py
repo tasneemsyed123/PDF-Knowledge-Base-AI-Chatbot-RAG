@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     chunk_size: int = 1000
     chunk_overlap: int = 150
-    retrieval_top_k: int = 4
+    retrieval_top_k: int = 8
 
     llm_provider: str = "groq"  # groq | gemini | openrouter
 
@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
+    # Soft cap surfaced on the admin dashboard so usage against the
+    # provider's free-tier request quota can be monitored. Not enforced
+    # here - crossing it doesn't block requests, it just turns the
+    # dashboard's usage panel amber/red.
+    llm_daily_call_limit: int = 500
 
 
 settings = Settings()

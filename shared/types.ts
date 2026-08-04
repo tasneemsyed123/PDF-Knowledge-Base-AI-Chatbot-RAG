@@ -56,6 +56,24 @@ export interface DashboardStats {
   recentDocuments: DocumentRecord[];
 }
 
+export interface LlmUsageStats {
+  totalCalls: number;
+  callsToday: number;
+  dailyLimit: number | null;
+  byProvider: Record<string, number>;
+}
+
+export interface VectorDbStats {
+  totalVectors: number;
+  indexedDocuments: number;
+  embeddingModel: string | null;
+}
+
+export interface MonitoringStats {
+  llmUsage: LlmUsageStats;
+  vectorDb: VectorDbStats;
+}
+
 /** One line of the /api/chat/ask NDJSON stream. */
 export type ChatStreamEvent =
   | { type: 'chunk'; content: string }

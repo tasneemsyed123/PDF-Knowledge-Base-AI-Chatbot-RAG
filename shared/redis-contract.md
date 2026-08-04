@@ -16,9 +16,11 @@ A live streaming HTTP connection is open on the backend, so it **subscribes to t
   "question": "What is the refund policy?",
   "chatHistory": [
     { "question": "...", "answer": "..." }
-  ]
+  ],
+  "documentNames": ["policy.pdf", "employee-handbook.pdf"]
 }
 ```
+`documentNames` is the current list of `completed` (successfully embedded) documents, fetched fresh from Mongo on every request. python-ai has no other way to know what's actually in the knowledge base - it only ever sees individual retrieved page chunks, never a manifest - so without this, questions like "what documents are available?" have to be answered by hoping retrieval happens to surface something listable, which can turn up unrelated content a document merely *references* (e.g. a standard's own bibliography) and misrepresent it as an uploaded file.
 
 **Response** — python-ai publishes *multiple* messages to `chat:response:{requestId}`, one per generated token/chunk, then a final message:
 ```json

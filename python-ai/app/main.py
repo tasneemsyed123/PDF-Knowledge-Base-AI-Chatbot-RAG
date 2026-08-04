@@ -16,7 +16,8 @@ from fastapi import FastAPI
 from .graph import run_chat
 from .pdf_processor import process_document
 from .redis_bus import listen_channel, publish
-from .vector_store import delete_document_vectors
+from .usage import publish_daily_limit
+from .vector_store import delete_document_vectors, publish_stats
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("main")
@@ -36,6 +37,7 @@ async def handle_chat_request(payload: dict) -> None:
             question=payload["question"],
             session_id=payload["sessionId"],
             chat_history=payload.get("chatHistory", []),
+            document_names=payload.get("documentNames", []),
             on_chunk=on_chunk,
         )
         await publish(
@@ -63,6 +65,7 @@ async def handle_document_process_request(payload: dict) -> None:
         logger.exception("Document process request %s failed unexpectedly", document_id)
         result = {"status": "failed", "error": str(exc)}
 
+    await publish_stats()
     await publish(f"document:process:response:{document_id}", result)
 
 
@@ -70,6 +73,7 @@ async def handle_document_delete_request(payload: dict) -> None:
     document_id = payload["documentId"]
     try:
         delete_document_vectors(document_id)
+        await publish_stats()
         logger.info("Purged vectors for deleted document %s", document_id)
     except Exception:
         # Fire-and-forget from the backend's perspective (it already deleted
@@ -81,6 +85,8 @@ async def handle_document_delete_request(payload: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    await publish_daily_limit()
+    await publish_stats()
     _background_tasks.append(asyncio.create_task(listen_channel("chat:request", handle_chat_request)))
     _background_tasks.append(
         asyncio.create_task(listen_channel("document:process:request", handle_document_process_request))

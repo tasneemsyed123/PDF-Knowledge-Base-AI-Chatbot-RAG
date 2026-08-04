@@ -20,6 +20,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from .config import settings
+from .redis_bus import get_redis
 
 _lock = threading.Lock()
 _store: Optional[FAISS] = None
@@ -110,3 +111,33 @@ def retrieve(question: str, k: Optional[int] = None):
     if store is None:
         return []
     return store.similarity_search(question, k=k or settings.retrieval_top_k)
+
+
+def get_stats() -> dict:
+    store = _get_store()
+    ids_map = _load_ids_map()
+    return {
+        "totalVectors": int(store.index.ntotal) if store is not None else 0,
+        "indexedDocuments": len(ids_map),
+        "embeddingModel": settings.embedding_model,
+    }
+
+
+async def publish_stats() -> None:
+    """
+    Refreshes the vector-db snapshot in Redis so the admin dashboard's
+    monitoring page can show it without python-ai needing an HTTP surface -
+    Redis is already the shared read path (see usage.py for the same
+    pattern with LLM call counts). Call after anything that changes the
+    index (upload, delete, reprocess) and once at startup.
+    """
+    stats = get_stats()
+    client = get_redis()
+    await client.hset(
+        "vectordb:stats",
+        mapping={
+            "totalVectors": stats["totalVectors"],
+            "indexedDocuments": stats["indexedDocuments"],
+            "embeddingModel": stats["embeddingModel"],
+        },
+    )

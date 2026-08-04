@@ -59,4 +59,16 @@ export class DocumentsRepository {
   async recent(limit: number): Promise<DocumentRecord[]> {
     return DocumentModel.find().sort({ uploadDate: -1 }).limit(limit);
   }
+
+  /**
+   * Only `completed` documents - these are the ones actually embedded and
+   * answerable. Used to give the chatbot ground truth about what's really
+   * in the knowledge base (see chat.service.ts), instead of it having to
+   * infer "available documents" from whatever page chunks retrieval
+   * happens to surface.
+   */
+  async listCompletedNames(): Promise<string[]> {
+    const docs = await DocumentModel.find({ status: 'completed' }, { originalName: 1 }).sort({ uploadDate: -1 });
+    return docs.map((d) => d.originalName);
+  }
 }

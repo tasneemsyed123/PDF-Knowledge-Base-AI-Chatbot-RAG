@@ -5,12 +5,16 @@
  * from python-ai over Redis Pub/Sub, persist the finished turn.
  */
 import { ChatRepository } from './chat.repository';
+import { DocumentsRepository } from '../documents/documents.repository';
 import { requestChatStream, ChatStreamResult } from '../../queue/redisPubSub';
 import { env } from '../../config/env';
 import { ChatMessageDocument } from '../../models/ChatMessage.model';
 
 export class ChatService {
-  constructor(private readonly chatRepository: ChatRepository) {}
+  constructor(
+    private readonly chatRepository: ChatRepository,
+    private readonly documentsRepository: DocumentsRepository,
+  ) {}
 
   async ask(
     sessionId: string,
@@ -19,11 +23,14 @@ export class ChatService {
     signal?: AbortSignal,
   ): Promise<ChatStreamResult> {
     await this.chatRepository.touchSession(sessionId);
-    const chatHistory = await this.chatRepository.recentHistory(sessionId);
+    const [chatHistory, documentNames] = await Promise.all([
+      this.chatRepository.recentHistory(sessionId),
+      this.documentsRepository.listCompletedNames(),
+    ]);
 
     let fullAnswer = '';
     const result = await requestChatStream(
-      { sessionId, question, chatHistory },
+      { sessionId, question, chatHistory, documentNames },
       (chunk) => {
         fullAnswer += chunk;
         onChunk(chunk);

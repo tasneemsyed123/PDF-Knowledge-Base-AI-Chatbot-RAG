@@ -57,7 +57,16 @@ async def process_document(document_id: str, file_path: str, original_name: str)
     delete_document_vectors(document_id)
 
     try:
-        loader = PyPDFLoader(file_path)
+        # extraction_mode="layout" (not the pypdf default "plain") preserves
+        # the PDF's visual spacing between text runs. Some PDFs (seen on
+        # resume templates in particular) position each word as its own
+        # glyph run with no explicit space character between them - "plain"
+        # mode then glues them into unreadable run-ons like
+        # "B.TechElectronics&CommunicationEngineering2019", which both
+        # embeds poorly (tanking retrieval ranking) and confuses the LLM
+        # even when it IS retrieved. "layout" reconstructs spacing from the
+        # glyphs' actual on-page positions instead.
+        loader = PyPDFLoader(file_path, extraction_mode="layout")
         pages = loader.load()  # one Document per page, metadata includes 'page' (0-indexed)
         page_count = len(pages)
 

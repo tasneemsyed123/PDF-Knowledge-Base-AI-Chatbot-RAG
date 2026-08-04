@@ -14,6 +14,7 @@ import { errorMiddleware } from './middlewares/error.middleware';
 import { authRouter } from './modules/auth/auth.routes';
 import { documentsRouter } from './modules/documents/documents.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+import { monitoringRouter } from './modules/monitoring/monitoring.routes';
 import { chatRouter } from './modules/chat/chat.routes';
 
 export function createApp(): Application {
@@ -39,6 +40,7 @@ export function createApp(): Application {
   app.use('/api/admin/auth', authRouter);
   app.use('/api/admin/documents', documentsRouter);
   app.use('/api/admin/dashboard', dashboardRouter);
+  app.use('/api/admin/monitoring', monitoringRouter);
   app.use('/api/chat', chatRouter);
 
   // Must be registered LAST - Express identifies error middleware by its

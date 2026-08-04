@@ -47,7 +47,7 @@ frontend/    Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui
 backend/     Node.js, Express, TypeScript
 python-ai/   Python, FastAPI, LangChain, LangGraph, FAISS
 shared/      Redis Pub/Sub contract + reference TS types
-docs/        API reference (docs/api.md)
+docs/        API reference + DB schema (docs/api.md, docs/db-schema.md)
 ```
 
 ## Tech stack
@@ -114,10 +114,7 @@ npm run dev                 # http://localhost:3000
 Set `LLM_PROVIDER=groq|gemini|openrouter` in `python-ai/.env` and fill in that provider's API key/model. See `python-ai/app/llm.py`.
 
 ## Database schema (MongoDB)
-- **AdminUser** — `email`, `passwordHash`, `name`. Provisioned only via `npm run seed-admin`.
-- **Document** — `fileName`, `originalName`, `filePath`, `uploadDate`, `status` (`pending`/`processing`/`completed`/`failed`), `pageCount`, `chunkCount`, `errorMessage`.
-- **ChatSession** — `sessionId` (client-generated uuid, no auth), `createdAt`, `lastActivityAt`.
-- **ChatMessage** — `sessionId`, `question`, `answer`, `sources[]`, `suggestedQuestions[]`, `timestamp`.
+4 collections — `AdminUser`, `Document`, `ChatSession`, `ChatMessage`. Full field-by-field reference (types, constraints, indexes) plus an ER diagram: [`docs/db-schema.md`](docs/db-schema.md).
 
 Vectors live only in FAISS (`python-ai/faiss_index/`), never in MongoDB — each chunk's metadata carries `{documentId, fileName, page, chunkIndex}`. A small sidecar `doc_chunk_ids.json` in that same directory maps `documentId -> [chunk ids]` so a single document's vectors can be deleted/reprocessed (FAISS has no server-side metadata-filtered delete like Chroma).
 

@@ -67,6 +67,9 @@ docs/        API reference (docs/api.md)
 - Node.js 20+, Python 3.11–3.12 (3.13/3.14 currently lack prebuilt wheels for some ML deps), Docker.
 - An API key for **one** of: [Groq](https://console.groq.com) (free tier), [Google AI Studio / Gemini](https://aistudio.google.com) (free tier), or [OpenRouter](https://openrouter.ai) (has free models).
 
+### Environment variables
+A single [`.env.example`](.env.example) at the repo root documents every variable for all 3 services (clearly marked with `## backend/.env`, `## frontend/.env.local`, `## python-ai/.env` section headers), since each service reads its own `.env` at runtime - Node's `dotenv`, Next.js, and Python's `pydantic-settings` each only look inside their own directory. It's safe to copy the **whole file** into each service's `.env` as a starting point - every framework here ignores env vars it doesn't recognize, so the other services' sections just sit there unused rather than causing errors.
+
 ### 1. Infra (MongoDB + Redis)
 ```bash
 docker compose up -d
@@ -76,7 +79,7 @@ Runs on non-default ports (`27018`, `6380`) so it can run alongside other local 
 ### 2. Backend
 ```bash
 cd backend
-cp .env.example .env      # fill in ADMIN_EMAIL / ADMIN_PASSWORD / JWT_SECRET / UPLOAD_DIR
+cp ../.env.example .env   # fill in ADMIN_EMAIL / ADMIN_PASSWORD / JWT_SECRET / UPLOAD_DIR
 npm install
 npm run seed-admin        # creates the one admin account - no public registration
 npm run dev                # http://localhost:4000
@@ -89,7 +92,7 @@ cd python-ai
 python -m venv .venv
 .venv\Scripts\activate      # Windows; use `source .venv/bin/activate` on macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env        # set LLM_PROVIDER + its API key
+cp ../.env.example .env     # set LLM_PROVIDER + its API key
 uvicorn app.main:app --reload --port 8000
 ```
 The embedding model (`sentence-transformers/all-MiniLM-L6-v2`) downloads automatically on first run (~90MB, one-time, fully local/free after that).
@@ -97,7 +100,7 @@ The embedding model (`sentence-transformers/all-MiniLM-L6-v2`) downloads automat
 ### 4. Frontend
 ```bash
 cd frontend
-cp .env.example .env.local
+cp ../.env.example .env.local
 npm install
 npm run dev                 # http://localhost:3000
 ```

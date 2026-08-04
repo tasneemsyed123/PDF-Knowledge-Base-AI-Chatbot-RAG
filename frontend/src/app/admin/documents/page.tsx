@@ -132,9 +132,9 @@ export default function AdminDocumentsPage() {
             </div>
 
             {selected.size > 0 && (
-              <div className="flex items-center gap-2 ml-auto animate-fadeIn">
+              <div className="flex items-center gap-2 ml-auto">
                 {confirmBulkDelete ? (
-                  <>
+                  <div key="confirm" className="flex items-center gap-2 animate-confirmPop origin-right">
                     <span className="text-sm font-medium text-red-600 dark:text-red-400">
                       Delete {selected.size} document{selected.size > 1 ? 's' : ''}?
                     </span>
@@ -152,15 +152,15 @@ export default function AdminDocumentsPage() {
                     >
                       {bulkDeleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
                     </Button>
-                  </>
+                  </div>
                 ) : (
-                  <>
+                  <div key="default" className="flex items-center gap-2 animate-fadeIn">
                     <span className="text-sm text-muted-foreground">{selected.size} selected</span>
                     <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)}>
                       <Trash2 className="h-3.5 w-3.5" />
                       Delete selected
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -231,7 +231,7 @@ export default function AdminDocumentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {confirmDeleteId === doc._id ? (
-                        <div className="flex items-center justify-end gap-2 animate-fadeIn">
+                        <div className="flex items-center justify-end gap-2 animate-confirmPop origin-right">
                           <span className="text-xs text-red-600 dark:text-red-400 font-medium hidden sm:inline">Delete?</span>
                           <Button variant="outline" size="sm" onClick={() => setConfirmDeleteId(null)}>
                             Cancel
@@ -249,7 +249,7 @@ export default function AdminDocumentsPage() {
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 animate-fadeIn">
                           <Button
                             variant="outline"
                             size="icon"

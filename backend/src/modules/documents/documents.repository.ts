@@ -71,4 +71,9 @@ export class DocumentsRepository {
     const docs = await DocumentModel.find({ status: 'completed' }, { originalName: 1 }).sort({ uploadDate: -1 });
     return docs.map((d) => d.originalName);
   }
+
+  /** Every document regardless of status - used by the admin "reset everything" flow. */
+  async listAll(): Promise<DocumentRecord[]> {
+    return DocumentModel.find();
+  }
 }

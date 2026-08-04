@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, FileText, LogOut, Sparkles, Loader2, Activity } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, Sparkles, Loader2, Activity, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/documents', label: 'Documents', icon: FileText },
   { href: '/admin/monitoring', label: 'API Monitoring', icon: Activity },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -52,11 +53,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
         <div className="absolute -top-32 -left-20 h-96 w-96 rounded-full bg-blue-400/10 blur-3xl" />
         <div className="absolute top-1/2 -right-32 h-96 w-96 rounded-full bg-indigo-400/10 blur-3xl" />
-      </div>
-
-      {/* Desktop-only floating toggle - the mobile topbar carries its own copy */}
-      <div className="hidden md:block fixed top-4 right-4 z-20">
-        <ThemeToggle />
       </div>
 
       {/* Desktop sidebar */}
@@ -105,13 +101,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <p className="text-2xs text-muted-foreground truncate">{admin?.email}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Log out
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLogout}
+              className="flex flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              Log out
+            </button>
+            <ThemeToggle className="h-9 w-9 shrink-0" />
+          </div>
           <p className="text-2xs text-center text-muted-foreground pt-1">Built by Tasneem Akthar Syed</p>
         </div>
       </aside>

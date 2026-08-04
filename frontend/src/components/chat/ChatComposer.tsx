@@ -65,7 +65,14 @@ export function ChatComposer({
     <form onSubmit={handleSubmit} className="w-full">
       <div
         className={cn(
-          'relative rounded-[1.75rem] p-[1.5px] bg-gradient-to-r from-slate-200 via-slate-200 to-slate-200 dark:from-slate-700 dark:via-slate-700 dark:to-slate-700 transition-all duration-300 focus-within:from-blue-400 focus-within:via-indigo-400 focus-within:to-blue-500 focus-within:shadow-[0_0_0_5px_rgba(59,130,246,0.1)]',
+          // dark: and focus-within: are both single-variant classes of equal
+          // specificity - which one wins when both are active comes down to
+          // Tailwind's stylesheet emission order, not which was written last
+          // here, and .dark was winning: the glow ring was permanently stuck
+          // at its resting gray in dark mode regardless of focus. The
+          // dark:focus-within: pair is a compound selector, strictly more
+          // specific, so it reliably wins over plain .dark once focused.
+          'relative rounded-[1.75rem] p-[1.5px] bg-gradient-to-r from-slate-200 via-slate-200 to-slate-200 dark:from-slate-700 dark:via-slate-700 dark:to-slate-700 transition-all duration-300 focus-within:from-blue-400 focus-within:via-indigo-400 focus-within:to-blue-500 focus-within:shadow-[0_0_0_5px_rgba(59,130,246,0.1)] dark:focus-within:from-blue-400 dark:focus-within:via-indigo-400 dark:focus-within:to-blue-500 dark:focus-within:shadow-[0_0_0_5px_rgba(96,165,250,0.25)]',
           disabled && 'opacity-70',
         )}
       >

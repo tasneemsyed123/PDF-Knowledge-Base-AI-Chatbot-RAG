@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { MessageSquarePlus, MessagesSquare, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { cn } from '@/lib/utils';
 import type { ChatSessionMeta } from '@/hooks/useChatSessions';
 
@@ -31,13 +32,19 @@ function SidebarBody({
         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-brand-glow shrink-0">
           <Sparkles className="h-4 w-4 text-white" />
         </div>
-        <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate" title="PDF Base AI Chatbot">
+        <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate flex-1" title="PDF Base AI Chatbot">
           PDF Base AI Chatbot
         </p>
-        {onCloseMobile && (
+        {onCloseMobile ? (
           <button onClick={onCloseMobile} className="ml-auto md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close menu">
             <X className="h-5 w-5" />
           </button>
+        ) : (
+          // Lives in the sidebar's normal flow (not fixed/floating over the
+          // page) so it can never overlap a page's own top-right content.
+          // The mobile drawer skips this - the persistent mobile header
+          // already carries its own copy, no need to duplicate it here.
+          <ThemeToggle className="h-8 w-8 shrink-0" />
         )}
       </div>
 

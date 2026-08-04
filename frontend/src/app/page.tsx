@@ -117,11 +117,6 @@ export default function PublicChatPage() {
         onCloseMobile={() => setIsSidebarOpen(false)}
       />
 
-      {/* Desktop-only floating toggle - the mobile header carries its own copy */}
-      <div className="hidden md:block fixed top-4 right-4 z-20">
-        <ThemeToggle />
-      </div>
-
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <header className="md:hidden shrink-0 border-b border-slate-200/70 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex h-14 items-center gap-2 px-3">

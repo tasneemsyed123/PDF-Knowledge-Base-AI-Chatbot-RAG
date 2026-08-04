@@ -58,7 +58,7 @@ async def receive_question(state: ChatState) -> dict:
 
 
 async def retrieve_context(state: ChatState) -> dict:
-    docs = retrieve(state["question"])
+    docs = retrieve(state["question"], document_names=state.get("document_names", []))
     return {"retrieved_docs": docs}
 
 
@@ -88,21 +88,25 @@ def _is_greeting(question: str) -> bool:
 
 
 ANSWER_SYSTEM_PROMPT = (
-    "You are a helpful knowledge-base assistant. Answer the user's question "
-    "using ONLY the provided context extracted from uploaded PDF documents. "
-    "You may perform simple reasoning or calculations strictly from facts "
-    "explicitly stated in the context - e.g. estimating an approximate age "
-    "from a stated graduation or birth year - but never invent a fact that "
-    "isn't in the context. If the context doesn't contain the underlying "
-    "fact needed to answer, say plainly that the knowledge base doesn't "
-    "cover it - never make things up. Keep answers concise and use markdown "
-    "(lists, bold) where it improves readability.\n\n"
-    "You are separately given the authoritative list of documents currently "
-    "in the knowledge base. For questions about WHICH documents exist (e.g. "
-    "\"what documents are available\", \"what's in the knowledge base\"), "
-    "answer directly from that list - do not substitute names, standards, "
-    "or sources merely MENTIONED or REFERENCED inside a document's content; "
-    "those are not the same as documents actually uploaded here."
+    "You are a precise knowledge-base assistant. Answer strictly from the "
+    "numbered excerpts in \"Context\" below - each is labeled with its "
+    "source file and page. You may combine facts across multiple excerpts "
+    "and perform simple reasoning or arithmetic strictly from facts they "
+    "state (e.g. estimating an approximate age from a stated graduation "
+    "year), but never state a fact the excerpts don't support.\n\n"
+    "If the excerpts only partially answer the question, answer the part "
+    "you can and say plainly what's missing - don't guess at the rest. If "
+    "two excerpts conflict, point out the conflict rather than silently "
+    "picking one. If they don't cover the question at all, say the "
+    "knowledge base doesn't cover it rather than improvising a plausible-"
+    "sounding answer.\n\n"
+    "\"Documents in the knowledge base\" (below) is the authoritative file "
+    "list - use it for questions about WHICH documents exist. Never treat "
+    "a name merely mentioned or referenced inside a document's content "
+    "(e.g. a standard citing another standard in its bibliography) as if "
+    "it were itself an uploaded file.\n\n"
+    "Keep answers concise; use markdown (lists, bold) where it improves "
+    "readability."
 )
 
 
@@ -116,8 +120,8 @@ async def generate_answer(state: ChatState) -> dict:
     docs = state["retrieved_docs"]
     context = (
         "\n\n".join(
-            f"[Source: {d.metadata.get('fileName')}, page {d.metadata.get('page')}]\n{d.page_content}"
-            for d in docs
+            f"[Excerpt {i + 1} - {d.metadata.get('fileName')}, page {d.metadata.get('page')}]\n{d.page_content}"
+            for i, d in enumerate(docs)
         )
         or "(no relevant context found in the knowledge base)"
     )
@@ -170,8 +174,13 @@ class SuggestedQuestions(BaseModel):
 
 SUGGEST_SYSTEM_PROMPT = (
     "Given the user's question and the assistant's answer, propose 3 to 5 "
-    "short, relevant follow-up questions the user might ask next. Base them "
-    "on what would naturally extend this conversation."
+    "short follow-up questions that dig deeper into the SAME topic using "
+    "the knowledge base - not generic small talk. Prefer questions that: "
+    "ask for specifics the answer only touched on briefly, request a "
+    "comparison or example, or move to a closely related section of the "
+    "same document(s). Avoid yes/no questions and avoid repeating the "
+    "original question's phrasing. Every question must be answerable from "
+    "documents in this knowledge base."
 )
 
 

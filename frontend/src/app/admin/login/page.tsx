@@ -79,7 +79,7 @@ export default function AdminLoginPage() {
 
       <div className="w-full max-w-[420px] md:max-w-[460px]">
         <div className="text-center mb-6 md:mb-8">
-          <h1 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold text-blue-600 dark:text-blue-400 tracking-tight leading-none">
+          <h1 className="text-2xl sm:text-3xl md:text-[32px] font-extrabold text-blue-600 dark:text-blue-400 tracking-tight leading-none">
             KNOWLEDGE BASE ADMIN
           </h1>
           <p className="text-sm md:text-base text-[#6B7280] dark:text-slate-400 mt-2.5">PDF Base AI Chatbot</p>

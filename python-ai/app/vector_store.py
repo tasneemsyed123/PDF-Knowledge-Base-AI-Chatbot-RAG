@@ -13,6 +13,7 @@ support deleting/reprocessing a single document's vectors.
 """
 import json
 import os
+import re
 import threading
 from typing import Optional
 
@@ -106,11 +107,64 @@ def delete_document_vectors(document_id: str) -> None:
         _save_ids_map(ids_map)
 
 
-def retrieve(question: str, k: Optional[int] = None):
+def _significant_words(text: str) -> set[str]:
+    """Lowercased alphabetic words of 4+ letters - long enough to be a
+    meaningful topic/filename word, short words like "the" or a stray "pdf"
+    would match almost anything and defeat the point."""
+    return {w.lower() for w in re.findall(r"[a-zA-Z]{4,}", text)}
+
+
+def _matching_document_names(question: str, document_names: list[str]) -> list[str]:
+    """Documents a question appears to name directly, e.g. "the resume" for
+    "tasneem_resume1(1).pdf" - matched by shared significant words rather
+    than substring, so it's not thrown off by punctuation/casing/numbering
+    in the filename."""
+    question_words = _significant_words(question)
+    if not question_words:
+        return []
+    matches = []
+    for name in document_names:
+        base_name = re.sub(r"\.pdf$", "", name, flags=re.IGNORECASE)
+        if question_words & _significant_words(base_name):
+            matches.append(name)
+    return matches
+
+
+def retrieve(question: str, document_names: Optional[list[str]] = None, k: Optional[int] = None) -> list:
     store = _get_store()
     if store is None:
         return []
-    return store.similarity_search(question, k=k or settings.retrieval_top_k)
+
+    # MMR (Maximal Marginal Relevance), not plain top-k similarity: plain
+    # top-k over a multi-document index tends to return several near-
+    # duplicate chunks from the same page/section of whichever document
+    # dominates the corpus by size, crowding out other genuinely relevant
+    # content (verified empirically here - a query returned the same page
+    # twice among only 8 results). MMR re-ranks a larger candidate pool for
+    # diversity while still respecting relevance (lambda_mult=0.5 balances
+    # the two), so the LLM sees a representative spread instead of several
+    # restatements of the same paragraph.
+    k = k or settings.retrieval_top_k
+    results = store.max_marginal_relevance_search(question, k=k, fetch_k=k * 4, lambda_mult=0.5)
+
+    # A vague/meta question naming a specific document by (part of) its
+    # filename - "tell me about the resume", "more info on the resume
+    # document" - should always surface THAT document's own chunks. Plain
+    # top-k similarity can fail this badly in an imbalanced corpus: a
+    # 74-chunk standard can statistically crowd every slot out of a 5-chunk
+    # resume's reach for a query that doesn't share much vocabulary with
+    # either document, even though the resume is clearly the intended
+    # target. Filename-matched documents get their own scoped search
+    # merged in as a guarantee, on top of (not instead of) normal retrieval.
+    if document_names:
+        present = {d.metadata.get("fileName") for d in results}
+        for name in _matching_document_names(question, document_names):
+            if name in present:
+                continue
+            results.extend(store.similarity_search(question, k=3, filter={"fileName": name}))
+            present.add(name)
+
+    return results
 
 
 def get_stats() -> dict:

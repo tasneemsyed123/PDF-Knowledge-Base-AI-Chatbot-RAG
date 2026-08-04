@@ -47,4 +47,9 @@ export class ChatRepository {
   async countMessages(): Promise<number> {
     return ChatMessageModel.countDocuments();
   }
+
+  /** Used by the admin "reset everything" flow. */
+  async deleteAll(): Promise<void> {
+    await Promise.all([ChatSessionModel.deleteMany({}), ChatMessageModel.deleteMany({})]);
+  }
 }

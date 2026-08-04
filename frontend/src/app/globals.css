@@ -30,7 +30,13 @@
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Same blue as light mode (a deliberate brand choice - the primary CTA
+       doesn't invert to near-white the way a template default would), so
+       its foreground must stay white in both themes too. Leaving this at
+       the template's dark-mode default (a near-black navy, meant for a
+       near-white PRIMARY that this app doesn't use) made every default
+       Button's text nearly unreadable against the blue background. */
+    --primary-foreground: 210 40% 98%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -65,6 +71,36 @@
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .animate-slideIn { animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Inline delete-confirm swap (documents table row / bulk toolbar): pops in
+   from its anchor edge instead of a flat fade, so replacing the icon
+   buttons with "Cancel / Confirm" text reads as a deliberate expand rather
+   than a jarring width jump. Ends at the identity transform, so - unlike
+   .animate-dialogIn - it needs no `forwards`; reverting after the
+   animation looks identical to the "to" state. */
+@keyframes confirmPop {
+  from { opacity: 0; transform: scale(0.9) translateX(6px); }
+  to { opacity: 1; transform: scale(1) translateX(0); }
+}
+.animate-confirmPop { animation: confirmPop 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* For a centered dialog: transform is a single CSS property, so a keyframe
+   animating it overrides (doesn't compose with) a separate static
+   -translate-x-1/2 -translate-y-1/2 utility class on the same element -
+   that combination momentarily loses the centering offset mid-animation,
+   visibly snapping the dialog into place at the very end. This keyframe
+   bakes the centering translate into both the from/to states instead. */
+@keyframes dialogIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.98); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* forwards is load-bearing here, not cosmetic: the element has no static
+   transform of its own anymore (that's the whole point - see the comment
+   above), so once the animation ends, "forwards" is the only thing holding
+   it at the keyframe's final translate(-50%, -50%). Without it the browser
+   reverts to transform: none the instant the animation completes, and the
+   dialog visibly jumps from centered to anchored-by-its-top-left-corner. */
+.animate-dialogIn { animation: dialogIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
 .animate-scaleIn { animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 

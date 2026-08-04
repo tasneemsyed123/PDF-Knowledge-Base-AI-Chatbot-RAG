@@ -135,17 +135,35 @@ def retrieve(question: str, document_names: Optional[list[str]] = None, k: Optio
     if store is None:
         return []
 
-    # MMR (Maximal Marginal Relevance), not plain top-k similarity: plain
-    # top-k over a multi-document index tends to return several near-
-    # duplicate chunks from the same page/section of whichever document
-    # dominates the corpus by size, crowding out other genuinely relevant
-    # content (verified empirically here - a query returned the same page
-    # twice among only 8 results). MMR re-ranks a larger candidate pool for
-    # diversity while still respecting relevance (lambda_mult=0.5 balances
-    # the two), so the LLM sees a representative spread instead of several
-    # restatements of the same paragraph.
     k = k or settings.retrieval_top_k
-    results = store.max_marginal_relevance_search(question, k=k, fetch_k=k * 4, lambda_mult=0.5)
+
+    # Hybrid, not pure MMR: half the slots are the top chunks by raw
+    # relevance, GUARANTEED regardless of diversity - verified empirically
+    # that pure MMR can drop a genuinely relevant top-4-by-similarity chunk
+    # because it looked "too similar" to another selected chunk, even
+    # though both covered different fields on the same form (registration
+    # number vs. engine number on an insurance schedule) and were both
+    # needed. MMR still fills the remaining slots for diversity, which is
+    # what fixes the ORIGINAL problem this replaced plain top-k for: several
+    # near-duplicate chunks from the same page crowding out everything else
+    # (also verified empirically - a query once returned the same page
+    # twice among only 8 plain-top-k results). No single lambda_mult value
+    # reliably satisfies both cases at once, so guarantee one and let MMR
+    # optimize the other.
+    guaranteed_k = max(1, k // 2)
+    top_by_relevance = store.similarity_search(question, k=guaranteed_k)
+    mmr_results = store.max_marginal_relevance_search(question, k=k, fetch_k=k * 4, lambda_mult=0.5)
+
+    seen = set()
+    results = []
+    for d in top_by_relevance + mmr_results:
+        key = (d.metadata.get("documentId"), d.metadata.get("chunkIndex"))
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(d)
+        if len(results) == k:
+            break
 
     # A vague/meta question naming a specific document by (part of) its
     # filename - "tell me about the resume", "more info on the resume

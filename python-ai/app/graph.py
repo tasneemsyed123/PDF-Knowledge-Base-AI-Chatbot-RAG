@@ -80,6 +80,8 @@ GREETING_RESPONSE = (
 GREETING_SUGGESTED_QUESTIONS = [
     "What documents are currently available?",
     "Summarize the key points from the knowledge base",
+    "What can you help me with?",
+    "Which document should I ask about first?",
 ]
 
 
@@ -117,6 +119,15 @@ ANSWER_SYSTEM_PROMPT = (
     "engine number), prefer the most standard reading - a vehicle's "
     "\"number\" ordinarily means its registration/license plate number - "
     "but still name the field so the user can tell.\n\n"
+    "Questions about a document's own nature - \"what is this document\", "
+    "\"what format/type is it\", \"what is it about\" - are NOT requests "
+    "for a fact the document states about itself; describe what the "
+    "excerpts evidently ARE (a form, an invoice, a policy schedule, a "
+    "resume, a technical standard...) and what they cover, based on their "
+    "visible structure and content. That's a reasonable characterization "
+    "of what's in front of you, not a fabricated fact - reserve \"the "
+    "knowledge base doesn't cover it\" for when the excerpts truly lack "
+    "the information asked for.\n\n"
     "Keep answers concise; use markdown (lists, bold) where it improves "
     "readability."
 )

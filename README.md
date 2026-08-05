@@ -6,40 +6,13 @@ Microservice architecture — the Node backend and Python AI service **never cal
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    FE["Next.js Frontend<br/>(TypeScript, Tailwind, shadcn/ui)"]
-    BE["Node.js Backend<br/>(Express, TypeScript)"]
-    REDIS["Redis Pub/Sub"]
-    AI["Python AI Service<br/>(FastAPI, LangChain, LangGraph)"]
-    FAISS[("FAISS<br/>vector store")]
-    MONGO[("MongoDB<br/>documents / chats / users")]
-
-    FE -- "REST + chunked streaming" --> BE
-    BE -- "PUBLISH request" --> REDIS
-    REDIS -- "message" --> AI
-    AI -- "PUBLISH response" --> REDIS
-    REDIS -- "message" --> BE
-    AI --> FAISS
-    BE --> MONGO
-```
+Microservice architecture — the Node backend and Python AI service **never call each other directly**; every AI operation (PDF processing, question answering) crosses **Redis Pub/Sub**.
 
 - **Chat** (a live streaming HTTP connection is waiting): the backend subscribes to a per-request `chat:response:{requestId}` channel *before* publishing `chat:request` — Redis Pub/Sub only delivers to subscribers connected at publish time, so subscribing first avoids dropping the first chunk. python-ai streams the answer back as multiple messages; the backend re-streams them to the browser as newline-delimited JSON (`fetch()` + `ReadableStream`, not `EventSource` — that endpoint needs a POST body).
 - **Document processing** (fire-and-forget): the backend registers one persistent `PSUBSCRIBE document:process:response:*` at boot and updates MongoDB whenever a result arrives.
-- Full message contract: [`shared/redis-contract.md`](shared/redis-contract.md).
+- `chat_history` (conversation memory) is fetched from MongoDB by the backend and passed in per-request — python-ai stays stateless/restart-safe.
 
-### LangGraph workflow
-
-```mermaid
-flowchart LR
-    START((START)) --> RQ[receive_question]
-    RQ --> RC[retrieve_context]
-    RC --> GA[generate_answer]
-    GA --> GS[generate_suggested_questions]
-    GS --> RR[return_response]
-    RR --> END((END))
-```
-`chat_history` (conversation memory) is fetched from MongoDB by the backend and passed in per-request — python-ai stays stateless/restart-safe. See [`python-ai/app/graph.py`](python-ai/app/graph.py).
+**Full diagrams** (system overview, chat sequence diagram, document-processing sequence diagram, LangGraph workflow, and the direct-communication boundary verification): [`docs/architecture.md`](docs/architecture.md). Message contract: [`shared/redis-contract.md`](shared/redis-contract.md).
 
 ## Project structure
 ```
@@ -47,7 +20,7 @@ frontend/    Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui
 backend/     Node.js, Express, TypeScript
 python-ai/   Python, FastAPI, LangChain, LangGraph, FAISS
 shared/      Redis Pub/Sub contract + reference TS types
-docs/        API reference + DB schema (docs/api.md, docs/db-schema.md)
+docs/        Architecture, API reference, DB schema (docs/architecture.md, docs/api.md, docs/db-schema.md)
 ```
 
 ## Tech stack

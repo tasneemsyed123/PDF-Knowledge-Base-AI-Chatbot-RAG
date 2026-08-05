@@ -115,17 +115,21 @@ def _significant_words(text: str) -> set[str]:
 
 
 def _matching_document_names(question: str, document_names: list[str]) -> list[str]:
-    """Documents a question appears to name directly, e.g. "the resume" for
-    "tasneem_resume1(1).pdf" - matched by shared significant words rather
-    than substring, so it's not thrown off by punctuation/casing/numbering
-    in the filename."""
+    """Documents a question appears to name directly - matched two ways:
+    shared significant words (e.g. "the resume" for "tasneem_resume1(1).pdf")
+    for human-named files, OR a direct substring match for system-generated
+    filenames that are mostly IDs/hashes with no real words in them at all
+    (e.g. "E-CAF1771501989241b050e589-fa05-410d-8232-3f903693b190.pdf" - the
+    word-based check above finds nothing to match on since there's no 4+
+    letter run in it, even when the user pastes the filename verbatim)."""
+    question_lower = question.lower()
     question_words = _significant_words(question)
-    if not question_words:
-        return []
     matches = []
     for name in document_names:
         base_name = re.sub(r"\.pdf$", "", name, flags=re.IGNORECASE)
-        if question_words & _significant_words(base_name):
+        word_match = bool(question_words) and bool(question_words & _significant_words(base_name))
+        substring_match = len(base_name) >= 8 and base_name.lower() in question_lower
+        if word_match or substring_match:
             matches.append(name)
     return matches
 

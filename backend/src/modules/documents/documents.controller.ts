@@ -37,4 +37,9 @@ export const documentsController = {
     const document = await documentsService.reprocess(req.params.id);
     res.status(200).json({ success: true, data: document });
   },
+
+  async download(req: Request, res: Response) {
+    const document = await documentsService.getFileForDownload(req.params.id);
+    res.download(document.filePath, document.originalName);
+  },
 };

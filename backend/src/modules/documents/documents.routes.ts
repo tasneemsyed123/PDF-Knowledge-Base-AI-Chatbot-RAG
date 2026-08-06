@@ -17,6 +17,11 @@ documentsRouter.use(authMiddleware);
 
 documentsRouter.post('/', uploadPdf.single('file'), asyncHandler(documentsController.upload));
 documentsRouter.get('/', validateQuery(listDocumentsQuerySchema), asyncHandler(documentsController.list));
+documentsRouter.get(
+  '/:id/download',
+  validateParams(documentIdParamsSchema),
+  asyncHandler(documentsController.download),
+);
 documentsRouter.delete('/:id', validateParams(documentIdParamsSchema), asyncHandler(documentsController.remove));
 documentsRouter.post(
   '/:id/reprocess',

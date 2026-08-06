@@ -74,6 +74,12 @@ export class DocumentsService {
     );
   }
 
+  async getFileForDownload(id: string): Promise<DocumentRecord> {
+    const document = await this.documentsRepository.findById(id);
+    if (!document) throw new NotFoundError('Document not found');
+    return document;
+  }
+
   async reprocess(id: string): Promise<DocumentRecord> {
     const document = await this.documentsRepository.findById(id);
     if (!document) throw new NotFoundError('Document not found');

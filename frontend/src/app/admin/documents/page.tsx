@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, Trash2, Search, X } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Search, X, Download } from 'lucide-react';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { UploadPdfModal } from '@/components/admin/UploadPdfModal';
 import { DocumentStatusBadge } from '@/components/admin/DocumentStatusBadge';
@@ -80,6 +80,21 @@ export default function AdminDocumentsPage() {
   const reprocessMutation = useMutation({
     mutationFn: (id: string) => apiClient.post(`/admin/documents/${id}/reprocess`),
     onSuccess: invalidate,
+    onError: (err) => setActionError(getApiErrorMessage(err)),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: async (doc: DocumentRecord) => {
+      const response = await apiClient.get(`/admin/documents/${doc._id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.originalName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    },
     onError: (err) => setActionError(getApiErrorMessage(err)),
   });
 
@@ -250,6 +265,15 @@ export default function AdminDocumentsPage() {
                         </div>
                       ) : (
                         <div className="flex justify-end gap-2 animate-fadeIn">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            title="Download"
+                            disabled={downloadMutation.isPending}
+                            onClick={() => downloadMutation.mutate(doc)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="outline"
                             size="icon"

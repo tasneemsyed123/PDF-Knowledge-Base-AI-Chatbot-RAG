@@ -101,10 +101,30 @@ export default function PublicChatPage() {
 
   return (
     <div className="h-[100dvh] flex chat-surface relative overflow-hidden">
-      {/* Decorative ambient glows - purely cosmetic, sit behind everything */}
+      {/* Decorative aurora background - purely cosmetic, sit behind everything.
+          Each blob drifts on its own duration/delay so the motion feels
+          organic rather than synchronized; prefers-reduced-motion disables it. */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden -z-10">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="absolute top-1/3 -right-24 h-80 w-80 rounded-full bg-indigo-400/15 blur-3xl" />
+        <div
+          className="animate-aurora absolute -top-32 -left-32 h-[26rem] w-[26rem] rounded-full bg-blue-400/40 dark:bg-blue-500/35 blur-3xl"
+          style={{ animationDuration: '20s' }}
+        />
+        <div
+          className="animate-aurora absolute top-1/4 -right-32 h-[28rem] w-[28rem] rounded-full bg-indigo-400/35 dark:bg-indigo-500/35 blur-3xl"
+          style={{ animationDuration: '26s', animationDelay: '-8s' }}
+        />
+        <div
+          className="animate-aurora absolute bottom-0 left-1/4 h-[24rem] w-[24rem] rounded-full bg-violet-400/30 dark:bg-violet-500/30 blur-3xl"
+          style={{ animationDuration: '24s', animationDelay: '-14s' }}
+        />
+        <div
+          className="animate-aurora absolute bottom-1/4 right-1/4 h-80 w-80 rounded-full bg-cyan-300/30 dark:bg-cyan-400/20 blur-3xl"
+          style={{ animationDuration: '30s', animationDelay: '-4s' }}
+        />
+        <div
+          className="animate-aurora absolute top-2/3 left-10 h-72 w-72 rounded-full bg-pink-300/20 dark:bg-pink-400/15 blur-3xl"
+          style={{ animationDuration: '28s', animationDelay: '-19s' }}
+        />
       </div>
 
       <ChatSidebar

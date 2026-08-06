@@ -140,14 +140,37 @@
    the public chat page instead of a flat solid background/shadow. */
 .chat-surface {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59, 130, 246, 0.08), transparent),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    radial-gradient(ellipse 70% 45% at 12% -8%, rgba(59, 130, 246, 0.20), transparent),
+    radial-gradient(ellipse 60% 40% at 88% 8%, rgba(129, 140, 248, 0.18), transparent),
+    radial-gradient(ellipse 55% 45% at 80% 95%, rgba(167, 139, 250, 0.14), transparent),
+    linear-gradient(180deg, #eef4ff 0%, #f6f8ff 45%, #f1f5f9 100%);
 }
 .dark .chat-surface {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59, 130, 246, 0.12), transparent),
+    radial-gradient(ellipse 70% 45% at 12% -8%, rgba(59, 130, 246, 0.28), transparent),
+    radial-gradient(ellipse 60% 40% at 88% 8%, rgba(99, 102, 241, 0.24), transparent),
+    radial-gradient(ellipse 55% 45% at 80% 95%, rgba(139, 92, 246, 0.18), transparent),
     linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
 }
 .shadow-brand-glow {
   box-shadow: 0 8px 24px -8px rgba(37, 99, 235, 0.35);
+}
+
+/* Aurora background (chat page): a handful of large blurred brand-color
+   blobs drifting slowly behind the content. Each blob gets its own
+   duration/delay (inline style, see page.tsx) so the motion reads as
+   organic rather than everything pulsing in lockstep. */
+@keyframes auroraDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(4%, 6%) scale(1.08); }
+  66%  { transform: translate(-3%, -4%) scale(0.96); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.animate-aurora {
+  animation: auroraDrift 22s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora {
+    animation: none;
+  }
 }
